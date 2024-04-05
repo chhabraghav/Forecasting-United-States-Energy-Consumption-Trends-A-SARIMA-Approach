@@ -1,0 +1,230 @@
+---
+title: "MAT-FinalProject"
+author: "ArtY and RaghavC"
+date: "2024-03-10"
+output: html_document
+---
+
+```{r, include=True}
+library(astsa)
+library(readxl)
+source("examine.mod.R")
+data <- read_excel("TTLEnergyConsumption.xlsx")
+```
+
+
+Lets convert our data in to time series.
+```{r, include=True}
+dataTS <- ts(data$`Total Primary Energy Consumption`, frequency=12, start=c(2000, 1))
+
+tsplot(dataTS, main="Total Primary Energy Consumption", ylab="Energy Consumption", xlab="Time")
+
+acf2(as.numeric(dataTS), max.lag=72, main="Estimated ACF & PACF of energy consumption")
+
+```
+We can see that data is not stationary. Data does not have a trend, but is seasonal. We can see the seasonal pattern every 12 months in PACF & ACF plot.
+
+Lets try to make data stationary by difference.
+
+#adjust for seasonality patter (1-B^12)*xt
+```{r pressure, echo=FALSE}
+dataTS_diff <- diff(dataTS, lag=12, differences=1)
+tsplot(dataTS_diff, main="Total Primary Energy Consumption One diff", ylab="Energy Consumption", xlab="Time")
+acf2(as.numeric(dataTS_diff), max.lag=72, main="Estimated ACF & PACF of energy consumption One diff")
+```
+data is now stationary and also we removed seasonality from the data by taking a difference.
+We can see seasonality in every 12th lag in ACF plot.
+```{r include=True}
+dataTS_log <- log(dataTS)
+dataTS_diff_log <- diff(dataTS_log,lag=12, differences=1)
+tsplot(dataTS_diff_log, main="Total Primary Energy Consumption diff_log", ylab="Energy Consumption", xlab="Time")
+acf2(as.numeric(dataTS_diff_log), max.lag=72, main="Estimated ACF & PACF of energy consumption diff_log")
+```
+We are taking transfomed data ### (IDK why)
+
+#(1-B)(1-B^12)*xt !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+```{r include=True}
+#Not needed
+dataTS_diff_diff <- diff(diff(dataTS,lag=12, differences=1))
+tsplot(dataTS_diff_diff, main="Total Primary Energy Consumption diff_diff", ylab="Energy Consumption", xlab="Time")
+acf2(as.numeric(dataTS_diff_diff), max.lag=72, main="Estimated ACF & PACF of energy consumption diff_diff")
+```
+From the ACF plots we will first try the model with parameters:
+p=2
+d=1
+q=3
+P=3
+D=1
+Q=2
+
+
+#Fitting and Diagnostic
+
+We will start making model with log data.
+We will start with the most complex model and go down to out best model
+
+```{r echo=True}
+#Model 1
+mod.fit.213.312 <- sarima(as.numeric(dataTS), p=2, d=1, q=3, P=3, D=1, Q=2, S=12)
+mod.fit.213.312
+```
+
+```{r echo=TRUE}
+examine.mod(mod.fit.213.312, 2,1,3,3,1,2,12)
+```
+The autocorrelations are found to be 0. However, the Ljung-Box-Pierce hypothesis test also detects autocorrelations
+are not 0. Also, looking at the p-value for model, we can confirm that model is not best fit model.
+
+paremeter estimate of sar3 is insignificant. Additionally, the analysis of residuals shows that normality assumption maybe slightly violated, and the independence of residuals is seemingly also violated as seen in the Ljung Box statistic plot as there are below 0 values in the first 15 lags.
+
+Since all the parameters are significant, except for sar3 we will get try P=1
+
+
+
+
+
+
+
+
+
+```{r echo=TRUE}
+mod.fit.213.112 <- sarima(as.numeric(dataTS), p=2, d=1, q=3, P=1, D=1, Q=2, S=12)
+mod.fit.213.112
+```
+ 
+
+```{r echo=TRUE}
+examine.mod(mod.fit.213.112, 2, 1, 3, 1, 1, 2 ,12)
+```
+The analysis of residuals shows that normality assumption maybe slightly violated, and the independence of residuals is seemingly also violated as seen in the Ljung Box statistic plot as there are below 0 values in the first 15 lags and all lags after 25th.
+ 
+
+
+
+
+
+
+```{r echo=TRUE}
+mod.fit.211.112 <- sarima(dataTS, p=2, d=1, q=1, P=1, D=1, Q=2, S=12)
+mod.fit.211.112
+
+```
+
+
+
+```{r echo=TRUE}
+examine.mod(mod.fit.211.112, p=2, d=1, q=1, P=1, D=1, Q=2, S=12)
+```
+
+The sar1 is insignificant in this case. The analysis of residuals shows that normality assumption maybe slightly violated, and the independence of residuals is seemingly also violated as seen in the Ljung Box statistic plot as there are below 0 values across nearly all lags.
+
+
+
+```{r echo=TRUE}
+mod.fit.211.012 <- sarima(dataTS, p=2, d=1, q=1, P=0, D=1, Q=2, S=12)
+mod.fit.211.012
+#Bad
+```
+
+```{r echo=TRUE}
+examine.mod(mod.fit.211.012, p=2, d=1, q=1, P=0, D=1, Q=2, S=12)
+
+```
+
+
+
+
+
+
+
+
+
+```{r echo=TRUE}
+mod.fit.112.211 <- sarima(dataTS, p=1, d=1, q=2 , P=2, D=1, Q=1, S=12)
+mod.fit.112.211
+#Bad
+```
+
+```{r echo=TRUE}
+examine.mod(mod.fit.112.211, p=1, d=1, q=2 , P=2, D=1, Q=1, S=12)
+```
+
+
+```{r echo=TRUE}
+mod.fit.112.212 <- sarima(dataTS, p=1, d=1, q=2 , P=2, D=1, Q=2, S=12)
+mod.fit.112.212
+#THE ONE!!!
+```
+```{r echo=TRUE}
+examine.mod(mod.fit.112.212, p=1, d=1, q=2 , P=2, D=1, Q=2, S=12)
+```
+
+
+
+
+
+#FORCASING
+
+
+
+
+Models that we selected
+1 mod.fit.101.211
+2 mod.fit.102.211
+3 mod.fit.101.112
+4 mod.fit.102.112
+
+
+```{r include=True}
+1
+data.frame(mod.name = c('Sarima.213.312', 'Sarima.213.112', 'Sarima.211.112', 'Sarima.211.012', 'Sarima.112.211',
+                        'Sarima.112.212'), 
+           AIC = c(mod.fit.213.312$IC[1], mod.fit.213.112$IC[1], mod.fit.211.112$IC[1], mod.fit.211.012$IC[1],
+                   mod.fit.112.211$IC[1], mod.fit.112.212$IC[1]),
+           AICc = c(mod.fit.213.312$IC[2], mod.fit.213.112$IC[2], mod.fit.211.112$IC[2], mod.fit.211.012$IC[2],
+                    mod.fit.112.211$IC[2], mod.fit.112.212$IC[2]), 
+           BIC = c(mod.fit.213.312$IC[3], mod.fit.213.112$IC[3], mod.fit.211.112$IC[3], mod.fit.211.012$IC[3],
+                   mod.fit.112.211$IC[3], mod.fit.112.212$IC[3]))
+
+
+
+```
+
+
+#ARTS CODE STARTS HERE
+
+```{r}
+#mod.fit.102.211
+
+
+forecast_quart <- sarima.for(dataTS, n.ahead = 3, p = 1, d = 1, q = 2, P = 2, D = 1, Q = 2, S=12, plot.all = TRUE)
+
+forecast_half <- sarima.for(dataTS, n.ahead = 6, p = 1, d = 1, q = 2, P = 2, D = 1, Q = 2, S=12, plot.all = TRUE)
+
+forecast_yearly <- sarima.for(dataTS, n.ahead = 14, p = 1, d = 1, q = 2, P = 2, D = 1, Q = 2, S=12, plot.all = TRUE)
+
+```
+
+
+```{r}
+
+pred_x <- dataTS - resid(mod.fit.112.212$fit) 
+pred_x
+```
+
+Since our constant is not significant, omitting it from the final model is justified. Our focus is on understanding the model time-dependent aspects rather that its mean-levels in the long term. 
+
+```{r}
+tsplot(dataTS, ylab = expression(y[t]), type = "o",  
+       
+       main = expression(paste((1-.8712*B)*(1-B)*(1-.0319*B^4-.2635*B^8)*(1-B^4)*x[t] == (1-.3368*B-.0849*B^2)*(1-.8332*B^4) * w[t]))) 
+
+lines(pred_x, col = "red", type = "o", pch = 17)  
+
+legend("topleft", legend = c("Observed", "Forecast"),  
+       
+       lty = c("solid", "solid"), col = c("black","red"), pch = c(1, 17), bty = "n") 
+
+
+print(expression(paste((1-.8712*B)*(1-B)*(1-.0319*B^4-.2635*B^8)*(1-B^4)*x[t] == (1-.3368*B-.0849*B^2)*(1-.8332*B^4) * w[t]) ))
+```
